@@ -1,33 +1,65 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Ionicons } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
+import { useTheme } from "../../src/context/ThemeContext";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { theme } = useTheme();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarStyle: {
+          backgroundColor: theme.backgroundColor,
+          borderTopColor: theme.isDarkMode ? "#333" : "#eee",
+          height: 60, // تحسين الارتفاع لراحة اليد
+          paddingBottom: 8,
+        },
+        tabBarActiveTintColor: "#007AFF",
+        tabBarInactiveTintColor: "#888",
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+      }}
+    >
+      {/* 1. الأسواق (الشاشة الرئيسية) */}
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: "Markets",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="stats-chart" size={24} color={color} />
+          ),
         }}
       />
+
+      {/* 2. المحفظة */}
       <Tabs.Screen
-        name="explore"
+        name="portfolio"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: "Portfolio",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="wallet" size={24} color={color} />
+          ),
+        }}
+      />
+
+      {/* 3. الأخبار */}
+      <Tabs.Screen
+        name="news"
+        options={{
+          title: "News",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="newspaper" size={24} color={color} />
+          ),
+        }}
+      />
+
+      {/* 4. الملف الشخصي (التبويب الجديد) */}
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="person" size={24} color={color} />
+          ),
         }}
       />
     </Tabs>

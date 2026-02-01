@@ -1,98 +1,224 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  RefreshControl,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { getCoinsData } from "../../src/api/coinService";
+import CoinItem from "../../src/components/CoinItem";
+import { useTheme } from "../../src/context/ThemeContext";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+interface Coin {
+  id: string;
+  name: string;
+  symbol: string;
+  image: string;
+  current_price: number;
+  price_change_percentage_24h: number;
+}
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const router = useRouter();
+  const { theme, toggleTheme, currency, changeCurrency } = useTheme();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const [allCoins, setAllCoins] = useState<Coin[]>([]);
+  const [filteredCoins, setFilteredCoins] = useState<Coin[]>([]);
+  const [favoriteCoins, setFavoriteCoins] = useState<Coin[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const getFavoritesKey = useCallback(async () => {
+    try {
+      const userData = await AsyncStorage.getItem("registeredUser");
+      if (userData) {
+        const { email } = JSON.parse(userData);
+        return `favorites_${email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_")}`;
+      }
+      return "favorites_guest";
+    } catch {
+      return "favorites_guest";
+    }
+  }, []);
+
+  const updateWatchlist = useCallback(async (data = allCoins) => {
+    const storageKey = await getFavoritesKey();
+    const saved = await AsyncStorage.getItem(storageKey);
+    const favoriteIds: string[] = saved ? JSON.parse(saved) : [];
+    const favs = data.filter((c) => favoriteIds.includes(c.id));
+    setFavoriteCoins(favs);
+    setFilteredCoins(data);
+  }, [allCoins, getFavoritesKey]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const data = await getCoinsData();
+      setAllCoins(data);
+      updateWatchlist(data);
+    } catch (e) {
+      console.error("Fetch Error:", e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [updateWatchlist]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      updateWatchlist();
+    }, [updateWatchlist])
+  );
+
+  const handleSearch = (text: string) => {
+    setSearch(text);
+    const filtered = allCoins.filter(
+      (c) =>
+        c.name.toLowerCase().includes(text.toLowerCase()) ||
+        c.symbol.toLowerCase().includes(text.toLowerCase())
+    );
+    setFilteredCoins(filtered);
+  };
+
+  const renderWatchlist = () => {
+    if (favoriteCoins.length === 0 || search.length > 0) return null;
+
+    return (
+      <View style={styles.watchlistContainer}>
+        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>Your Watchlist ⭐</Text>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={favoriteCoins}
+          keyExtractor={(item) => `fav-${item.id}`}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[styles.favCard, { backgroundColor: theme.cardColor }]}
+              onPress={() => router.push({ pathname: "/details", params: item as any })}
+            >
+              <Image source={{ uri: item.image }} style={styles.favImage} />
+              <Text style={[styles.favSymbol, { color: theme.textColor }]}>{item.symbol.toUpperCase()}</Text>
+              <Text style={[styles.favPrice, { color: item.price_change_percentage_24h >= 0 ? "#2ed573" : "#ff4757" }]}>
+                {item.price_change_percentage_24h.toFixed(1)}%
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <StatusBar barStyle={theme.isDarkMode ? "light-content" : "dark-content"} />
+
+      <View style={[styles.header, { borderBottomColor: theme.isDarkMode ? "#333" : "#eee" }]}>
+        <View style={styles.topRow}>
+          <Text style={[styles.title, { color: theme.textColor }]}>CryptoPulse</Text>
+          <TouchableOpacity onPress={toggleTheme} style={styles.iconBtn}>
+            <Ionicons name={theme.isDarkMode ? "sunny" : "moon"} size={24} color={theme.textColor} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.searchRow}>
+          <View style={[styles.searchBox, { backgroundColor: theme.cardColor }]}>
+            <Ionicons name="search" size={18} color="#888" style={{ marginRight: 10 }} />
+            <TextInput
+              style={[styles.input, { color: theme.textColor }]}
+              placeholder="Search market..."
+              placeholderTextColor="#888"
+              value={search}
+              onChangeText={handleSearch}
+            />
+          </View>
+        </View>
+
+        <View style={styles.currencyRow}>
+          {["USD", "EUR", "EGP", "SAR"].map((curr) => (
+            <TouchableOpacity
+              key={curr}
+              onPress={() => changeCurrency(curr)}
+              style={[
+                styles.currBtn,
+                currency.label === curr && { backgroundColor: "#007AFF", borderColor: "#007AFF" },
+              ]}
+            >
+              <Text style={[styles.currText, { color: currency.label === curr ? "#fff" : theme.textColor }]}>
+                {curr}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
+        </View>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" style={{ flex: 1 }} color="#007AFF" />
+      ) : (
+        <FlatList
+          data={filteredCoins}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderWatchlist}
+          renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => router.push({ pathname: "/details", params: item as any })}>
+              <CoinItem item={item} />
+            </TouchableOpacity>
+          )}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#007AFF" />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={{ color: theme.textColor }}>No results found.</Text>
+            </View>
+          }
+          contentContainerStyle={{ paddingBottom: 20 }}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: { flex: 1 },
+  header: { padding: 15, borderBottomWidth: 1 },
+  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 15 },
+  title: { fontSize: 26, fontWeight: "900", letterSpacing: -1 },
+  iconBtn: { padding: 5 },
+  searchRow: { flexDirection: "row", marginBottom: 12 },
+  searchBox: { flex: 1, height: 50, borderRadius: 15, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
+  input: { flex: 1, fontSize: 16 },
+  currencyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 5 },
+  currBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: "#ccc", minWidth: 60, alignItems: "center" },
+  currText: { fontSize: 12, fontWeight: "bold" },
+  settingsBtn: { padding: 5 },
+  watchlistContainer: { paddingVertical: 20, paddingLeft: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: "800", marginBottom: 15 },
+  favCard: {
+    width: 110, padding: 15, borderRadius: 20, marginRight: 15, alignItems: 'center',
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 3
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  favImage: { width: 35, height: 35, marginBottom: 8 },
+  favSymbol: { fontWeight: "800", fontSize: 14 },
+  favPrice: { fontSize: 12, fontWeight: "bold", marginTop: 4 },
+  emptyContainer: { alignItems: "center", marginTop: 50 },
 });
