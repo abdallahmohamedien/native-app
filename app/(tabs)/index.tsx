@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -39,6 +40,54 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
 
+
+  const checkPriceAlerts = useCallback(async (currentMarkets: Coin[]) => {
+    try {
+      const userData = await AsyncStorage.getItem("registeredUser");
+      const email = userData ? JSON.parse(userData).email : "guest";
+      const userSuffix = email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
+      const alertKey = `alerts_${userSuffix}`;
+
+      const savedAlerts = await AsyncStorage.getItem(alertKey);
+      if (!savedAlerts) return;
+
+      let alerts = JSON.parse(savedAlerts);
+      let hasChanges = false;
+
+      alerts.forEach((alert: any, index: number) => {
+        if (!alert.active) return;
+
+        const currentCoin = currentMarkets.find(m => m.id === alert.coinId);
+        if (!currentCoin) return;
+
+        const currentPrice = currentCoin.current_price;
+        let triggered = false;
+
+        if (alert.type === 'UP' && currentPrice >= alert.targetPrice) triggered = true;
+        if (alert.type === 'DOWN' && currentPrice <= alert.targetPrice) triggered = true;
+
+        if (triggered) {
+          Notifications.scheduleNotificationAsync({
+            content: {
+              title: `🚀 Price Alert: ${alert.name}`,
+              body: `${alert.name} has hit your target of ${currency.symbol}${alert.targetPrice.toLocaleString()}!`,
+              sound: true,
+            },
+            trigger: null,
+          });
+          alerts[index].active = false;
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges) {
+        await AsyncStorage.setItem(alertKey, JSON.stringify(alerts));
+      }
+    } catch (e) {
+      console.error("Alert Monitor Error:", e);
+    }
+  }, [currency.symbol]);
+
   const getFavoritesKey = useCallback(async () => {
     try {
       const userData = await AsyncStorage.getItem("registeredUser");
@@ -61,18 +110,23 @@ export default function HomeScreen() {
     setFilteredCoins(data);
   }, [allCoins, getFavoritesKey]);
 
+
   const fetchData = useCallback(async () => {
     try {
       const data = await getCoinsData();
       setAllCoins(data);
       updateWatchlist(data);
+
+
+      checkPriceAlerts(data);
+
     } catch (e) {
       console.error("Fetch Error:", e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [updateWatchlist]);
+  }, [updateWatchlist, checkPriceAlerts]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -81,6 +135,9 @@ export default function HomeScreen() {
 
   useEffect(() => {
     fetchData();
+
+    const interval = setInterval(fetchData, 60000);
+    return () => clearInterval(interval);
   }, [fetchData]);
 
   useFocusEffect(
@@ -134,9 +191,21 @@ export default function HomeScreen() {
       <View style={[styles.header, { borderBottomColor: theme.isDarkMode ? "#333" : "#eee" }]}>
         <View style={styles.topRow}>
           <Text style={[styles.title, { color: theme.textColor }]}>CryptoPulse</Text>
-          <TouchableOpacity onPress={toggleTheme} style={styles.iconBtn}>
-            <Ionicons name={theme.isDarkMode ? "sunny" : "moon"} size={24} color={theme.textColor} />
-          </TouchableOpacity>
+
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+
+            <TouchableOpacity
+              onPress={() => router.push("/alerts")}
+              style={[styles.iconBtn, { marginRight: 15 }]}
+            >
+              <Ionicons name="notifications-outline" size={24} color={theme.textColor} />
+              <View style={styles.alertDot} />
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={toggleTheme} style={styles.iconBtn}>
+              <Ionicons name={theme.isDarkMode ? "sunny" : "moon"} size={24} color={theme.textColor} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.searchRow}>
@@ -167,7 +236,6 @@ export default function HomeScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-
         </View>
       </View>
 
@@ -203,14 +271,24 @@ const styles = StyleSheet.create({
   header: { padding: 15, borderBottomWidth: 1 },
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 15 },
   title: { fontSize: 26, fontWeight: "900", letterSpacing: -1 },
-  iconBtn: { padding: 5 },
+  iconBtn: { padding: 5, position: 'relative' },
+  alertDot: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 8,
+    height: 8,
+    backgroundColor: '#ff4757',
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#fff'
+  },
   searchRow: { flexDirection: "row", marginBottom: 12 },
   searchBox: { flex: 1, height: 50, borderRadius: 15, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
   input: { flex: 1, fontSize: 16 },
   currencyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 5 },
   currBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: "#ccc", minWidth: 60, alignItems: "center" },
   currText: { fontSize: 12, fontWeight: "bold" },
-  settingsBtn: { padding: 5 },
   watchlistContainer: { paddingVertical: 20, paddingLeft: 15 },
   sectionTitle: { fontSize: 18, fontWeight: "800", marginBottom: 15 },
   favCard: {
