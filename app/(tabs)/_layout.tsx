@@ -11,7 +11,7 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: theme.backgroundColor,
           borderTopColor: theme.isDarkMode ? "#333" : "#eee",
-          height: 60, // تحسين الارتفاع لراحة اليد
+          height: 60,
           paddingBottom: 8,
         },
         tabBarActiveTintColor: "#007AFF",
@@ -19,7 +19,7 @@ export default function TabLayout() {
         headerShown: false,
       }}
     >
-      {/* 1. الأسواق (الشاشة الرئيسية) */}
+
       <Tabs.Screen
         name="index"
         options={{
@@ -30,7 +30,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 2. المحفظة */}
+
       <Tabs.Screen
         name="portfolio"
         options={{
@@ -41,7 +41,14 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 3. الأخبار */}
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: 'History',
+          tabBarIcon: ({ color }) => <Ionicons name="time" size={24} color={color} />,
+        }}
+      />
+
       <Tabs.Screen
         name="news"
         options={{
@@ -52,7 +59,6 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 4. الملف الشخصي (التبويب الجديد) */}
       <Tabs.Screen
         name="profile"
         options={{
