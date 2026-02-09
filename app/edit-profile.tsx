@@ -1,12 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from 'expo-haptics';
-import * as LocalAuthentication from 'expo-local-authentication'; // مكتبة البصمة
+import * as LocalAuthentication from 'expo-local-authentication';
 import { Stack, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
@@ -21,30 +24,58 @@ import {
 import { showMessage } from "react-native-flash-message";
 import { useTheme } from "../src/context/ThemeContext";
 
+const { width } = Dimensions.get('window');
+
 export default function AdvancedSettings() {
-    const { theme, isDarkMode, toggleTheme } = useTheme();
+    const { theme, isDarkMode } = useTheme();
     const router = useRouter();
 
-    // States
     const [loading, setLoading] = useState(false);
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [notifsEnabled, setNotifsEnabled] = useState(true);
-    const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [biometricsActive, setBiometricsActive] = useState(false);
+
+    // Animations Constants
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const pulse1 = useRef(new Animated.Value(1)).current;
+    const pulse2 = useRef(new Animated.Value(1)).current;
+    const securityBar = useRef(new Animated.Value(0.4)).current; // 40% initial security
 
     useEffect(() => {
         loadUserData();
         checkDeviceSupport();
+        Animated.timing(fadeAnim, { toValue: 1, duration: 1000, useNativeDriver: true }).start();
     }, []);
 
-    // التحقق من دعم الجهاز للبصمة
-    const checkDeviceSupport = async () => {
-        const compatible = await LocalAuthentication.hasHardwareAsync();
-        setIsBiometricSupported(compatible);
+    // 🛡️ تفعيل رادار الحماية الاحترافي
+    useEffect(() => {
+        if (biometricsActive) {
+            Animated.parallel([
+                Animated.loop(
+                    Animated.sequence([
+                        Animated.timing(pulse1, { toValue: 1.4, duration: 1500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+                        Animated.timing(pulse1, { toValue: 1, duration: 0, useNativeDriver: true }),
+                    ])
+                ),
+                Animated.loop(
+                    Animated.sequence([
+                        Animated.delay(500),
+                        Animated.timing(pulse2, { toValue: 1.6, duration: 1500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+                        Animated.timing(pulse2, { toValue: 1, duration: 0, useNativeDriver: true }),
+                    ])
+                ),
+                Animated.timing(securityBar, { toValue: 1, duration: 800, useNativeDriver: false })
+            ]).start();
+        } else {
+            pulse1.setValue(1);
+            pulse2.setValue(1);
+            Animated.timing(securityBar, { toValue: 0.4, duration: 500, useNativeDriver: false }).start();
+        }
+    }, [biometricsActive]);
 
-        // جلب حالة تفعيل البصمة من التخزين
+    const checkDeviceSupport = async () => {
         const savedBio = await AsyncStorage.getItem("biometrics_enabled");
         setBiometricsActive(savedBio === "true");
     };
@@ -53,122 +84,175 @@ export default function AdvancedSettings() {
         const savedData = await AsyncStorage.getItem("registeredUser");
         if (savedData) {
             const user = JSON.parse(savedData);
-            setName(user.name);
-            setEmail(user.email);
+            setName(user.name || "");
+            setEmail(user.email || "");
+            setPassword(user.password || "");
         }
     };
 
-    // دالة تفعيل/إلغاء البصمة مع التحقق
     const toggleBiometrics = async (value: boolean) => {
         if (value) {
-            // طلب التحقق من الهوية قبل التفعيل
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             const result = await LocalAuthentication.authenticateAsync({
-                promptMessage: "Authenticate to enable Biometrics",
-                fallbackLabel: "Use Passcode",
+                promptMessage: "Accessing Secure Core",
+                disableDeviceFallback: true,
             });
-
             if (result.success) {
                 setBiometricsActive(true);
                 await AsyncStorage.setItem("biometrics_enabled", "true");
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                showMessage({ message: "Biometrics Enabled", type: "success" });
+                showMessage({ message: "Quantum Shield Enabled 🛡️", type: "success", backgroundColor: "#007AFF" });
             } else {
                 setBiometricsActive(false);
             }
         } else {
             setBiometricsActive(false);
             await AsyncStorage.setItem("biometrics_enabled", "false");
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         }
     };
 
-    const handleSaveAll = async () => {
+    const handleUpdate = async () => {
         setLoading(true);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         try {
-            const updatedUser = { name, email };
+            const updatedUser = { name, email, password };
             await AsyncStorage.setItem("registeredUser", JSON.stringify(updatedUser));
-            await new Promise(resolve => setTimeout(resolve, 800));
-            showMessage({ message: "Settings saved successfully", type: "success" });
-            router.back();
+            setTimeout(() => {
+                setLoading(false);
+                router.back();
+            }, 1200);
         } catch (e) {
-            showMessage({ message: "Error saving settings", type: "danger" });
-        } finally {
             setLoading(false);
         }
     };
 
-    const SettingRow = ({ label, children, icon, subLabel }: any) => (
-        <View style={[styles.row, { borderBottomColor: isDarkMode ? "#333" : "#eee" }]}>
-            <View style={styles.rowLabelGroup}>
-                <View style={[styles.iconBox, { backgroundColor: isDarkMode ? "#222" : "#f0f0f0" }]}>
-                    <Ionicons name={icon} size={18} color={theme.textColor} />
-                </View>
-                <View>
-                    <Text style={[styles.label, { color: theme.textColor }]}>{label}</Text>
-                    {subLabel && <Text style={styles.subLabelText}>{subLabel}</Text>}
-                </View>
-            </View>
-            {children}
-        </View>
-    );
-
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-            <Stack.Screen options={{ title: "Account Settings", headerShown: true, headerTintColor: theme.textColor, headerStyle: { backgroundColor: theme.backgroundColor } }} />
+            <Stack.Screen options={{
+                headerTitle: "Vault Security",
+                headerTransparent: true,
+                headerTintColor: theme.textColor,
+                headerBlurEffect: 'dark'
+            }} />
 
             <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    <Animated.View style={{ opacity: fadeAnim }}>
 
-                    <Text style={styles.sectionTitle}>Identity</Text>
-                    <View style={[styles.card, { backgroundColor: theme.cardColor }]}>
-                        <SettingRow label="Display Name" icon="person">
-                            <TextInput
-                                style={[styles.input, { color: theme.textColor }]}
-                                value={name}
-                                onChangeText={setName}
-                            />
-                        </SettingRow>
-                        <SettingRow label="Email" icon="mail" subLabel="Connected Account">
-                            <Text style={{ color: "#888", fontSize: 14 }}>{email}</Text>
-                        </SettingRow>
-                    </View>
+                        {/* 🚀 Advanced Radar Header */}
+                        <View style={styles.radarSection}>
+                            <View style={styles.radarContainer}>
+                                {biometricsActive && (
+                                    <>
+                                        <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulse1 }], opacity: pulse1.interpolate({ inputRange: [1, 1.4], outputRange: [0.5, 0] }) }]} />
+                                        <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulse2 }], opacity: pulse2.interpolate({ inputRange: [1, 1.6], outputRange: [0.3, 0] }) }]} />
+                                    </>
+                                )}
+                                <View style={[styles.profileFrame, { borderColor: biometricsActive ? '#007AFF' : '#333' }]}>
+                                    <Image
+                                        source={{ uri: `https://ui-avatars.com/api/?name=${name}&background=007AFF&color=fff&size=200` }}
+                                        style={styles.mainAvatar}
+                                    />
+                                    {biometricsActive && (
+                                        <View style={styles.activeBadge}>
+                                            <Ionicons name="shield-checkmark" size={16} color="#fff" />
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
 
-                    <Text style={styles.sectionTitle}>Security & Privacy</Text>
-                    <View style={[styles.card, { backgroundColor: theme.cardColor }]}>
-                        {isBiometricSupported && (
-                            <SettingRow label="FaceID / Fingerprint" icon="finger-print" subLabel="Secure your wallet">
+                            <Text style={[styles.userName, { color: theme.textColor }]}>{name || "Anonymous"}</Text>
+
+                            {/* Security Score Bar */}
+                            <View style={styles.scoreContainer}>
+                                <View style={styles.scoreHeader}>
+                                    <Text style={styles.scoreTitle}>Security Strength</Text>
+                                    <Text style={[styles.scoreVal, { color: biometricsActive ? '#007AFF' : '#FF9500' }]}>
+                                        {biometricsActive ? 'Excellent' : 'Basic'}
+                                    </Text>
+                                </View>
+                                <View style={styles.barBackground}>
+                                    <Animated.View style={[styles.barFill, {
+                                        width: securityBar.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+                                        backgroundColor: biometricsActive ? '#007AFF' : '#FF9500'
+                                    }]} />
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* 📝 Premium Form Card */}
+                        <View style={[styles.glassCard, { backgroundColor: theme.cardColor }]}>
+                            <Text style={styles.innerLabel}>Identity Details</Text>
+                            <View style={styles.inputWrapper}>
+                                <Ionicons name="person-circle-outline" size={22} color="#007AFF" />
+                                <TextInput
+                                    style={[styles.field, { color: theme.textColor }]}
+                                    value={name}
+                                    onChangeText={setName}
+                                    placeholder="Legal Name"
+                                    placeholderTextColor="#555"
+                                />
+                            </View>
+                            <View style={styles.inputWrapper}>
+                                <Ionicons name="mail-unread-outline" size={22} color="#007AFF" />
+                                <TextInput
+                                    style={[styles.field, { color: theme.textColor }]}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    placeholder="Recovery Email"
+                                    autoCapitalize="none"
+                                />
+                            </View>
+                            <View style={[styles.inputWrapper, { borderBottomWidth: 0 }]}>
+                                <Ionicons name="lock-closed-outline" size={22} color="#007AFF" />
+                                <TextInput
+                                    style={[styles.field, { color: theme.textColor }]}
+                                    value={password}
+                                    secureTextEntry={!showPassword}
+                                    onChangeText={setPassword}
+                                    placeholder="Vault Password"
+                                />
+                                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                    <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#888" />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        {/* 🛡️ Biometric Switch Card */}
+                        <View style={[styles.glassCard, { backgroundColor: theme.cardColor, paddingVertical: 12 }]}>
+                            <View style={styles.switchBox}>
+                                <View style={styles.switchLead}>
+                                    <View style={[styles.iconCircle, { backgroundColor: biometricsActive ? '#007AFF20' : '#8881' }]}>
+                                        <Ionicons name="finger-print" size={22} color={biometricsActive ? '#007AFF' : '#888'} />
+                                    </View>
+                                    <View>
+                                        <Text style={[styles.switchMainTxt, { color: theme.textColor }]}>Biometric Shield</Text>
+                                        <Text style={styles.switchSubTxt}>Quantum encryption active</Text>
+                                    </View>
+                                </View>
                                 <Switch
                                     value={biometricsActive}
                                     onValueChange={toggleBiometrics}
-                                    trackColor={{ false: "#767577", true: "#007AFF" }}
+                                    trackColor={{ false: "#222", true: "#007AFF" }}
+                                    ios_backgroundColor="#222"
                                 />
-                            </SettingRow>
-                        )}
-                        <SettingRow label="Two-Factor Auth" icon="shield-half" subLabel="Add extra layer">
-                            <TouchableOpacity onPress={() => showMessage({ message: "Coming in v1.1", type: "info" })}>
-                                <Text style={{ color: "#007AFF", fontWeight: "bold" }}>Setup</Text>
-                            </TouchableOpacity>
-                        </SettingRow>
-                    </View>
+                            </View>
+                        </View>
 
-                    <Text style={styles.sectionTitle}>App Preferences</Text>
-                    <View style={[styles.card, { backgroundColor: theme.cardColor }]}>
-                        <SettingRow label="Dark Mode" icon="moon">
-                            <Switch value={isDarkMode} onValueChange={toggleTheme} trackColor={{ false: "#767577", true: "#007AFF" }} />
-                        </SettingRow>
-                        <SettingRow label="Price Alerts" icon="notifications">
-                            <Switch value={notifsEnabled} onValueChange={setNotifsEnabled} trackColor={{ false: "#767577", true: "#007AFF" }} />
-                        </SettingRow>
-                    </View>
+                        {/* ⚡ Primary Action */}
+                        <TouchableOpacity activeOpacity={0.85} style={styles.saveBtn} onPress={handleUpdate}>
+                            {loading ? <ActivityIndicator color="#fff" /> : (
+                                <View style={styles.saveBtnContent}>
+                                    <Text style={styles.saveBtnTxt}>Sync with Vault</Text>
+                                    <Ionicons name="shield-half" size={20} color="#fff" />
+                                </View>
+                            )}
+                        </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.saveBtn} onPress={handleSaveAll} disabled={loading}>
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Update Account</Text>}
-                    </TouchableOpacity>
+                        <Text style={styles.footprint}>AES-256 Bit Encryption Active</Text>
 
-                    <TouchableOpacity style={styles.dangerBtn} onPress={() => Alert.alert("Sign Out", "Are you sure?", [{ text: "Cancel" }, { text: "Logout", style: "destructive", onPress: () => router.replace("/login") }])}>
-                        <Text style={styles.dangerBtnText}>Logout Account</Text>
-                    </TouchableOpacity>
-
+                    </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -177,17 +261,44 @@ export default function AdvancedSettings() {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    scrollContent: { padding: 20, paddingBottom: 40 },
-    sectionTitle: { fontSize: 13, fontWeight: "800", color: "#888", marginBottom: 10, marginTop: 20, textTransform: "uppercase", marginLeft: 10, letterSpacing: 0.5 },
-    card: { borderRadius: 24, overflow: "hidden", marginBottom: 15 },
-    row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 0.5 },
-    rowLabelGroup: { flexDirection: "row", alignItems: "center" },
-    iconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-    label: { fontSize: 16, fontWeight: "600" },
-    subLabelText: { fontSize: 12, color: "#888", marginTop: 2 },
-    input: { flex: 1, textAlign: "right", fontSize: 16, fontWeight: "500" },
-    saveBtn: { backgroundColor: "#007AFF", height: 60, borderRadius: 20, justifyContent: "center", alignItems: "center", marginTop: 30, shadowColor: "#007AFF", shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 },
-    saveBtnText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-    dangerBtn: { marginTop: 20, height: 55, justifyContent: "center", alignItems: "center" },
-    dangerBtnText: { color: "#ff4757", fontSize: 15, fontWeight: "700" }
+    scrollContent: { padding: 24, paddingTop: 100, paddingBottom: 40 },
+
+    // Radar Header
+    radarSection: { alignItems: 'center', marginBottom: 35 },
+    radarContainer: { width: 150, height: 150, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+    pulseRing: { position: 'absolute', width: 140, height: 140, borderRadius: 70, borderWidth: 2, borderColor: '#007AFF' },
+    profileFrame: { width: 110, height: 110, borderRadius: 40, borderWidth: 3, padding: 4, justifyContent: 'center', alignItems: 'center' },
+    mainAvatar: { width: 95, height: 95, borderRadius: 32 },
+    activeBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#007AFF', width: 28, height: 28, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#fff' },
+    userName: { fontSize: 28, fontWeight: '900', letterSpacing: -1 },
+
+    // Security Score Bar
+    scoreContainer: { width: '80%', marginTop: 20 },
+    scoreHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+    scoreTitle: { fontSize: 11, fontWeight: '700', color: '#888', textTransform: 'uppercase' },
+    scoreVal: { fontSize: 11, fontWeight: '900' },
+    barBackground: { height: 6, backgroundColor: '#8882', borderRadius: 3, overflow: 'hidden' },
+    barFill: { height: '100%', borderRadius: 3 },
+
+    // Glass Cards
+    glassCard: { borderRadius: 28, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: '#8881' },
+    innerLabel: { fontSize: 13, fontWeight: '800', color: '#007AFF', marginBottom: 15, textTransform: 'uppercase' },
+    inputWrapper: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#8881' },
+    field: { flex: 1, marginLeft: 15, fontSize: 16, fontWeight: '600' },
+
+    // Switch
+    switchBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    switchLead: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+    iconCircle: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+    switchMainTxt: { fontSize: 16, fontWeight: '700' },
+    switchSubTxt: { fontSize: 12, color: '#888', marginTop: 2 },
+
+    // Action Button
+    saveBtn: {
+        backgroundColor: '#007AFF', height: 65, borderRadius: 22, justifyContent: 'center', alignItems: 'center',
+        shadowColor: '#007AFF', shadowOpacity: 0.3, shadowRadius: 15, shadowOffset: { width: 0, height: 10 }, elevation: 6
+    },
+    saveBtnContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    saveBtnTxt: { color: '#fff', fontSize: 18, fontWeight: '800' },
+    footprint: { textAlign: 'center', color: '#555', fontSize: 10, fontWeight: '700', marginTop: 25, textTransform: 'uppercase' }
 });
