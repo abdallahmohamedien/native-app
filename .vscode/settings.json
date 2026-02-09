@@ -4,5 +4,14 @@
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
   },
-  "cSpell.words": ["forwardslash", "imageurl", "sparkline"]
+  "cSpell.words": [
+    "cryptopulse",
+    "favs",
+    "forwardslash",
+    "imageurl",
+    "itms",
+    "sparkline",
+    "Watchlist",
+    "yourname"
+  ]
 }
