@@ -15,7 +15,7 @@ CryptoPulse is a high-performance, modern mobile application built with **React 
 * **Haptics:** `expo-haptics` for tactile feedback
 
 ## 🚀 How to Run
-1. Clone the repo: `git clone https://github.com/your-username/cryptopulse.git`
+1. Clone the repo: `git clone https://github.com/abdallahmohamedien/native-app`
 2. Install dependencies: `npm install`
 3. Start the project: `npx expo start`
 
