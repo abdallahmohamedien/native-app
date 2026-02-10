@@ -1,9 +1,8 @@
+/* cspell:ignore Haptics */
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback } from "react";
 import {
-    Alert,
     FlatList,
     SafeAreaView,
     StyleSheet,
@@ -11,6 +10,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useHistory } from "../../hooks/useHistory";
 import { useTheme } from "../../src/context/ThemeContext";
 
 const toEn = (num: string | number) => {
@@ -20,49 +20,13 @@ const toEn = (num: string | number) => {
 
 export default function HistoryScreen() {
     const { theme, currency } = useTheme();
-    const [history, setHistory] = useState<any[]>([]);
-    const [filter, setFilter] = useState<'all' | 'buy' | 'sell'>('all');
-
-    const fetchHistory = useCallback(async () => {
-        try {
-            const userData = await AsyncStorage.getItem("registeredUser");
-            const email = userData ? JSON.parse(userData).email : "guest";
-            const historyKey = `history_${email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_")}`;
-
-            const savedHistory = await AsyncStorage.getItem(historyKey);
-            if (savedHistory) {
-                setHistory(JSON.parse(savedHistory));
-            }
-        } catch (error) {
-            console.error("Failed to fetch history:", error);
-        }
-    }, []);
+    const { filter, filteredHistory, fetchHistory, handleFilterPress } = useHistory();
 
     useFocusEffect(
         useCallback(() => {
             fetchHistory();
         }, [fetchHistory])
     );
-
-
-    const filteredHistory = useMemo(() => {
-        if (filter === 'all') return history;
-        return history.filter(item => item.type === filter);
-    }, [history, filter]);
-
- 
-    const handleFilterPress = () => {
-        Alert.alert(
-            "Filter Activity",
-            "Choose transaction type to display:",
-            [
-                { text: "All Transactions", onPress: () => setFilter('all') },
-                { text: "Only Buys (+)", onPress: () => setFilter('buy') },
-                { text: "Only Sells (-)", onPress: () => setFilter('sell') },
-                { text: "Cancel", style: "cancel" }
-            ]
-        );
-    };
 
     const renderTransaction = ({ item }: { item: any }) => {
         const isBuy = item.type === "buy";
@@ -74,7 +38,7 @@ export default function HistoryScreen() {
             <View style={styles.timelineItem}>
                 <View style={styles.timelineLeft}>
                     <View style={[styles.timelineLine, { backgroundColor: theme.isDarkMode ? "#333" : "#eee" }]} />
-                    <View style={[styles.timelineDot, { backgroundColor: isBuy ? "#2ecc71" : "#e74c3c" }]} />
+                    <View style={[styles.timelineDot, { backgroundColor: isBuy ? "#2ecc71" : "#e74c3c", borderColor: theme.backgroundColor }]} />
                 </View>
 
                 <View style={[styles.card, { backgroundColor: theme.cardColor }]}>
@@ -121,7 +85,6 @@ export default function HistoryScreen() {
                     </Text>
                 </View>
 
-              
                 <TouchableOpacity
                     activeOpacity={0.7}
                     onPress={handleFilterPress}
@@ -150,8 +113,8 @@ export default function HistoryScreen() {
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
-                        <View style={styles.emptyIconCircle}>
-                            <Ionicons name="receipt-outline" size={50} color="#ccc" />
+                        <View style={[styles.emptyIconCircle, { backgroundColor: theme.cardColor }]}>
+                            <Ionicons name="receipt-outline" size={50} color="#666" />
                         </View>
                         <Text style={[styles.emptyText, { color: theme.textColor }]}>No records found</Text>
                         <Text style={styles.emptySubText}>Try changing the filter or start trading</Text>
@@ -164,14 +127,7 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 25,
-        marginTop: 15,
-        marginBottom: 20
-    },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, marginTop: 15, marginBottom: 20 },
     title: { fontSize: 32, fontWeight: "900", letterSpacing: -0.5 },
     subTitle: { color: "#888", fontSize: 14, fontWeight: "500", marginTop: 2 },
     filterBtn: { width: 45, height: 45, borderRadius: 15, justifyContent: 'center', alignItems: 'center', elevation: 2 },
@@ -179,36 +135,9 @@ const styles = StyleSheet.create({
     timelineItem: { flexDirection: 'row' },
     timelineLeft: { alignItems: 'center', width: 20, marginRight: 10 },
     timelineLine: { width: 2, flex: 1 },
-    timelineDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        position: 'absolute',
-        top: 25,
-        zIndex: 1,
-        borderWidth: 2,
-        borderColor: '#fff'
-    },
-    card: {
-        flex: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        padding: 16,
-        borderRadius: 24,
-        marginBottom: 15,
-        elevation: 3,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-    },
-    iconContainer: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        justifyContent: "center",
-        alignItems: "center",
-    },
+    timelineDot: { width: 10, height: 10, borderRadius: 5, position: 'absolute', top: 25, zIndex: 1, borderWidth: 2 },
+    card: { flex: 1, flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 24, marginBottom: 15, elevation: 3, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10 },
+    iconContainer: { width: 44, height: 44, borderRadius: 14, justifyContent: "center", alignItems: "center" },
     details: { flex: 1, marginLeft: 15 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     coinName: { fontSize: 16, fontWeight: "800" },
@@ -219,7 +148,7 @@ const styles = StyleSheet.create({
     amount: { fontSize: 16, fontWeight: "900" },
     price: { color: "#999", fontSize: 12, marginTop: 4, fontWeight: "600" },
     emptyState: { alignItems: "center", marginTop: 120, paddingHorizontal: 40 },
-    emptyIconCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#f9f9f9', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+    emptyIconCircle: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
     emptyText: { fontSize: 20, fontWeight: "800" },
     emptySubText: { color: "#888", textAlign: 'center', marginTop: 8, lineHeight: 20 },
 });
