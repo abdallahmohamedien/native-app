@@ -27,7 +27,6 @@ export const useAssetActions = (item: any) => {
       const email = userData ? JSON.parse(userData).email : "guest";
       const userSuffix = email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
 
-      // 1. تحديث الـ Portfolio
       const storageKey = `portfolio_${userSuffix}`;
       const savedPortfolio = await AsyncStorage.getItem(storageKey);
       let portfolio = savedPortfolio ? JSON.parse(savedPortfolio) : [];
@@ -47,7 +46,6 @@ export const useAssetActions = (item: any) => {
       }
       await AsyncStorage.setItem(storageKey, JSON.stringify(portfolio));
 
-      // 2. تسجيل العملية في الـ History
       const historyKey = `history_${userSuffix}`;
       const savedHistory = await AsyncStorage.getItem(historyKey);
       let history = savedHistory ? JSON.parse(savedHistory) : [];
@@ -70,6 +68,7 @@ export const useAssetActions = (item: any) => {
       setAmount("");
       onSuccess();
     } catch (error) {
+      console.error("Transaction Error:", error); // كدة استخدمنا المتغير والـ ESLint هيسكت
       Alert.alert("Error", "Transaction failed");
     } finally {
       setLoading(false);

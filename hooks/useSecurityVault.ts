@@ -1,3 +1,4 @@
+/* cspell:ignore Haptics */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -60,6 +61,7 @@ export const useSecurityVault = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
     } catch (error) {
+      console.error("Biometrics Toggle Error:", error); // حل التحذير الأول (سطر 62)
       setBiometricsActive(false);
     }
   };
@@ -75,6 +77,7 @@ export const useSecurityVault = () => {
         onSuccess();
       }, 1000);
     } catch (e) {
+      console.error("Vault Sync Error:", e); // حل التحذير الثاني (سطر 77)
       setLoading(false);
     }
   };

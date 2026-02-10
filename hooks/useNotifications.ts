@@ -32,11 +32,10 @@ export const useNotifications = () => {
       type: "system",
     },
   ]);
-  const [loading, setLoading] = useState(false);
 
   const clearNotifications = useCallback(async () => {
     setNotifications([]);
   }, []);
 
-  return { notifications, loading, clearNotifications };
+  return { notifications, clearNotifications };
 };

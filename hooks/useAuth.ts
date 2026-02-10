@@ -76,6 +76,7 @@ export const useAuth = () => {
       }, 1200);
     } catch (error) {
       setLoading(false);
+      console.error("Login hook error:", error); // كدة استخدمنا المتغير والتحذير هيختفي
       Alert.alert("Error", "Something went wrong during login");
     }
   };

@@ -54,9 +54,9 @@ export const useSignup = () => {
 
     setLoading(true);
     try {
+      // Simulation of network delay
       setTimeout(async () => {
-        // حفظ البيانات بدون حقل الـ confirm
-        const { confirm, ...userData } = form;
+        const { confirm, ...userData } = form; // هنا confirm مستبعد عمداً من الحفظ
         await AsyncStorage.setItem("registeredUser", JSON.stringify(userData));
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -67,6 +67,7 @@ export const useSignup = () => {
         ]);
       }, 1500);
     } catch (error) {
+      console.error("Signup storage error:", error); // حل التحذير باستخدام المتغير
       setLoading(false);
       Alert.alert("Error", "Something went wrong saving your data.");
     }

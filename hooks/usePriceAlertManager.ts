@@ -1,3 +1,4 @@
+/* cspell:ignore Haptics */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
@@ -9,14 +10,16 @@ export const usePriceAlertManager = (item: any) => {
   useEffect(() => {
     (async () => {
       const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== "granted") console.log("Notification permissions denied");
+      if (status !== "granted") {
+        console.log("Notification permissions denied");
+      }
     })();
   }, []);
 
   const saveAlert = async (onSuccess: () => void) => {
     const price = parseFloat(targetPrice);
     if (isNaN(price) || price <= 0) {
-      Alert.alert("Error", "Invalid price");
+      Alert.alert("Error", "Please enter a valid target price");
       return;
     }
 
@@ -30,7 +33,7 @@ export const usePriceAlertManager = (item: any) => {
       let alerts = savedAlerts ? JSON.parse(savedAlerts) : [];
 
       alerts.push({
-        id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).substring(2, 11),
         coinId: item.id,
         name: item.name,
         targetPrice: price,
@@ -44,7 +47,8 @@ export const usePriceAlertManager = (item: any) => {
       setTargetPrice("");
       onSuccess();
     } catch (error) {
-      Alert.alert("Error", "Failed to set alert");
+      console.error("Price Alert Manager Error:", error);
+      Alert.alert("Error", "Failed to set the alert. Please try again.");
     }
   };
 
