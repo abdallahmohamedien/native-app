@@ -1,43 +1,15 @@
+import { usePriceAlerts } from "@/hooks/usePriceAlerts";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
-import {
-    FlatList,
-    Alert as RNAlert,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
-} from "react-native";
+import React, { useCallback } from "react";
+import { FlatList, Alert as RNAlert, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "../src/context/ThemeContext";
-
-const toEn = (num: string | number) => {
-    if (num === undefined || num === null) return '---';
-    return num.toString().replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString());
-};
+import { toEn } from "../src/utils/formatters";
 
 export default function AlertsScreen() {
     const { theme, currency } = useTheme();
     const router = useRouter();
-    const [alerts, setAlerts] = useState<any[]>([]);
-
-    const fetchAlerts = useCallback(async () => {
-        try {
-            const userData = await AsyncStorage.getItem("registeredUser");
-            const email = userData ? JSON.parse(userData).email : "guest";
-            const userSuffix = email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
-            const alertKey = `alerts_${userSuffix}`;
-
-            const savedAlerts = await AsyncStorage.getItem(alertKey);
-            if (savedAlerts) {
-                setAlerts(JSON.parse(savedAlerts));
-            }
-        } catch (error) {
-            console.error("Failed to fetch alerts:", error);
-        }
-    }, []);
+    const { alerts, fetchAlerts, removeAlert } = usePriceAlerts();
 
     useFocusEffect(
         useCallback(() => {
@@ -45,47 +17,23 @@ export default function AlertsScreen() {
         }, [fetchAlerts])
     );
 
-    const deleteAlert = async (id: string) => {
-        RNAlert.alert(
-            "Remove Alert",
-            "Are you sure you want to delete this price alert?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        const updatedAlerts = alerts.filter(a => a.id !== id);
-                        setAlerts(updatedAlerts);
-                        const userData = await AsyncStorage.getItem("registeredUser");
-                        const email = userData ? JSON.parse(userData).email : "guest";
-                        const userSuffix = email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
-                        await AsyncStorage.setItem(`alerts_${userSuffix}`, JSON.stringify(updatedAlerts));
-                    }
-                }
-            ]
-        );
+    const handleDeletePress = (id: string) => {
+        RNAlert.alert("Remove Alert", "Are you sure?", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Delete", style: "destructive", onPress: () => removeAlert(id) }
+        ]);
     };
 
     const renderAlertItem = ({ item }: { item: any }) => {
-        const isActive = item.active !== false; // لو مش موجودة نعتبرها true
+        const isActive = item.active !== false;
+        const color = isActive ? (item.type === 'UP' ? "#2ecc71" : "#e74c3c") : "#8e8e93";
 
         return (
             <View style={[styles.card, { backgroundColor: theme.cardColor }]}>
-                {/* أيقونة الحالة */}
-                <View style={[styles.iconBox, {
-                    backgroundColor: isActive
-                        ? (item.type === 'UP' ? 'rgba(46, 204, 113, 0.1)' : 'rgba(231, 76, 60, 0.1)')
-                        : 'rgba(142, 142, 147, 0.1)'
-                }]}>
-                    <Ionicons
-                        name={item.type === 'UP' ? "trending-up" : "trending-down"}
-                        size={22}
-                        color={isActive ? (item.type === 'UP' ? "#2ecc71" : "#e74c3c") : "#8e8e93"}
-                    />
+                <View style={[styles.iconBox, { backgroundColor: `${color}15` }]}>
+                    <Ionicons name={item.type === 'UP' ? "trending-up" : "trending-down"} size={22} color={color} />
                 </View>
 
-                {/* معلومات التنبيه */}
                 <View style={styles.info}>
                     <View style={styles.row}>
                         <Text style={[styles.coinName, { color: theme.textColor }]}>{item.name}</Text>
@@ -95,13 +43,10 @@ export default function AlertsScreen() {
                             </Text>
                         </View>
                     </View>
-                    <Text style={styles.targetText}>
-                        Notify at {currency.symbol}{toEn(item.targetPrice.toLocaleString())}
-                    </Text>
+                    <Text style={styles.targetText}>Notify at {currency.symbol}{toEn(item.targetPrice.toLocaleString())}</Text>
                 </View>
 
-                {/* زر الحذف */}
-                <TouchableOpacity onPress={() => deleteAlert(item.id)} style={styles.deleteBtn}>
+                <TouchableOpacity onPress={() => handleDeletePress(item.id)} style={styles.deleteBtn}>
                     <Ionicons name="trash-outline" size={18} color="#ff4757" />
                 </TouchableOpacity>
             </View>
@@ -110,7 +55,6 @@ export default function AlertsScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-            {/* Header مطور */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: theme.cardColor }]}>
                     <Ionicons name="chevron-back" size={24} color={theme.textColor} />
@@ -126,20 +70,22 @@ export default function AlertsScreen() {
                 keyExtractor={(item) => item.id}
                 renderItem={renderAlertItem}
                 contentContainerStyle={styles.list}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                    <View style={styles.empty}>
-                        <View style={styles.emptyIconBox}>
-                            <Ionicons name="notifications-off-outline" size={50} color="#ccc" />
-                        </View>
-                        <Text style={[styles.emptyText, { color: theme.textColor }]}>No active alerts</Text>
-                        <Text style={styles.emptySubText}>Set an alert from the coin details screen to stay updated.</Text>
-                    </View>
-                }
+                ListEmptyComponent={<EmptyState theme={theme} />}
             />
         </SafeAreaView>
     );
 }
+
+const EmptyState = ({ theme }: any) => (
+    <View style={styles.empty}>
+        <View style={styles.emptyIconBox}>
+            <Ionicons name="notifications-off-outline" size={50} color="#ccc" />
+        </View>
+        <Text style={[styles.emptyText, { color: theme.textColor }]}>No active alerts</Text>
+        <Text style={styles.emptySubText}>Set an alert from the coin details screen.</Text>
+    </View>
+);
+
 
 const styles = StyleSheet.create({
     container: { flex: 1 },

@@ -41,7 +41,7 @@ export default function AdvancedSettings() {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const pulse1 = useRef(new Animated.Value(1)).current;
     const pulse2 = useRef(new Animated.Value(1)).current;
-    const securityBar = useRef(new Animated.Value(0.4)).current; // 40% initial security
+    const securityBar = useRef(new Animated.Value(0.4)).current;
 
     useEffect(() => {
         loadUserData();
@@ -49,7 +49,7 @@ export default function AdvancedSettings() {
         Animated.timing(fadeAnim, { toValue: 1, duration: 1000, useNativeDriver: true }).start();
     }, []);
 
-    // 🛡️ تفعيل رادار الحماية الاحترافي
+
     useEffect(() => {
         if (biometricsActive) {
             Animated.parallel([
