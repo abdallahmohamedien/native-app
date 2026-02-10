@@ -7,7 +7,6 @@ import { ThemeProvider } from "../src/context/ThemeContext";
 export default function RootLayout() {
   const { isLogged } = useAuthStatus();
 
-
   if (isLogged === null) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#000" }}>
@@ -23,9 +22,8 @@ export default function RootLayout() {
           <Stack.Screen name="login" />
           <Stack.Screen name="signup" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="edit-profile" />
         </Stack>
-
-
         <FlashMessage position="top" floating={true} />
       </View>
     </ThemeProvider>
