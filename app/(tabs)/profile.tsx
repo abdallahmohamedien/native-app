@@ -1,75 +1,44 @@
+/* cspell:ignore Haptics */
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
   ActivityIndicator,
   SafeAreaView,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
 } from "react-native";
+
+import { useProfile } from "../../hooks/useProfile";
 import { useTheme } from "../../src/context/ThemeContext";
 
 export default function ProfileScreen() {
   const { theme, isDarkMode, toggleTheme, currency } = useTheme();
   const router = useRouter();
   const navigation = useNavigation();
-
-  const [user, setUser] = useState({ name: "User", email: "" });
-  const [assetCount, setAssetCount] = useState(0);
-  const [isVerified, setIsVerified] = useState(false); // حالة التوثيق
-  const [loading, setLoading] = useState(true);
+  const { user, assetCount, isVerified, loading, fetchData, handleLogout } = useProfile();
 
   const WHITE = "#FFFFFF";
   const BLACK = "#000000";
   const LIGHT_GRAY = "#D1D1D1";
 
-  const fetchData = useCallback(async () => {
-    try {
-      // 1. جلب بيانات المستخدم
-      const savedUser = await AsyncStorage.getItem("registeredUser");
-      const userData = savedUser ? JSON.parse(savedUser) : { name: "Guest", email: "guest@example.com" };
-      setUser(userData);
-
-      // 2. جلب حالة التوثيق (البصمة)
-      const savedBio = await AsyncStorage.getItem("biometrics_enabled");
-      setIsVerified(savedBio === "true");
-
-      // 3. جلب عدد الأصول
-      const storageKey = `portfolio_${userData.email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_")}`;
-      const savedAssets = await AsyncStorage.getItem(storageKey);
-
-      if (savedAssets) {
-        const assets = JSON.parse(savedAssets);
-        setAssetCount(assets.length);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // التحديث التلقائي عند الرجوع للشاشة
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchData();
-    });
+    const unsubscribe = navigation.addListener('focus', fetchData);
     return unsubscribe;
   }, [navigation, fetchData]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // دالة المشاركة والتقييم واللوج أوت (نفس الكود السابق)...
-  const handleRateUs = async () => { /* ... */ };
-  const handleLogout = () => { /* ... */ };
-  const onShare = async () => { /* ... */ };
+  const onShare = async () => {
+    try {
+      await Share.share({ message: 'Join me on CryptoPulse to track your assets! 🚀' });
+    } catch (error) { console.log(error); }
+  };
 
   const MenuOption = ({ icon, title, value, onPress, isLast = false }: any) => (
     <TouchableOpacity
@@ -105,10 +74,10 @@ export default function ProfileScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
+        {/* User Header */}
         <View style={styles.headerSection}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatarMain}>
-              {/* تغيير الحرف تلقائياً بناءً على الاسم الجديد */}
               <Text style={styles.avatarText}>{user.name ? user.name[0].toUpperCase() : "U"}</Text>
             </View>
             <TouchableOpacity
@@ -118,50 +87,35 @@ export default function ProfileScreen() {
               <Ionicons name="pencil" size={12} color={WHITE} />
             </TouchableOpacity>
           </View>
-
-          {/* عرض الاسم مع علامة التوثيق إذا كان Verified */}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text style={[styles.nameText, { color: isDarkMode ? WHITE : BLACK }]}>{user.name}</Text>
-            {isVerified && (
-              <Ionicons name="checkmark-circle" size={18} color="#007AFF" style={{ marginLeft: 6, marginTop: 4 }} />
-            )}
+            {isVerified && <Ionicons name="checkmark-circle" size={18} color="#007AFF" style={{ marginLeft: 6, marginTop: 4 }} />}
           </View>
-
           <View style={[styles.emailBadge, { backgroundColor: isDarkMode ? "#1A1A1A" : "rgba(128,128,128,0.1)" }]}>
             <Text style={[styles.emailText, { color: isDarkMode ? LIGHT_GRAY : "#888" }]}>{user.email}</Text>
           </View>
         </View>
 
+        {/* Stats Cards */}
         <View style={styles.statsContainer}>
           <View style={[styles.statItem, { backgroundColor: theme.cardColor }]}>
             <Ionicons name="layers-outline" size={20} color={isDarkMode ? WHITE : "#007AFF"} />
-            <Text style={[styles.statVal, { color: isDarkMode ? WHITE : BLACK }]}>{assetCount.toLocaleString('en-US')}</Text>
+            <Text style={[styles.statVal, { color: isDarkMode ? WHITE : BLACK }]}>{assetCount}</Text>
             <Text style={[styles.statLab, { color: isDarkMode ? LIGHT_GRAY : "#888" }]}>Assets</Text>
           </View>
           <View style={[styles.statItem, { backgroundColor: theme.cardColor }]}>
-            <Ionicons
-              name={isVerified ? "shield-checkmark" : "shield-outline"}
-              size={20}
-              color={isVerified ? "#2ecc71" : "#888"}
-            />
-            <Text style={[styles.statVal, { color: isDarkMode ? WHITE : BLACK }]}>
-              {isVerified ? "Verified" : "Basic"}
-            </Text>
+            <Ionicons name={isVerified ? "shield-checkmark" : "shield-outline"} size={20} color={isVerified ? "#2ecc71" : "#888"} />
+            <Text style={[styles.statVal, { color: isDarkMode ? WHITE : BLACK }]}>{isVerified ? "Verified" : "Basic"}</Text>
             <Text style={[styles.statLab, { color: isDarkMode ? LIGHT_GRAY : "#888" }]}>Account</Text>
           </View>
         </View>
 
-        {/* باقي مجموعات المنيو... */}
+        {/* Account Settings */}
         <View style={styles.menuGroup}>
           <Text style={[styles.groupTitle, { color: isDarkMode ? LIGHT_GRAY : "#888" }]}>Account Settings</Text>
           <View style={[styles.groupCard, { backgroundColor: theme.cardColor }]}>
             <MenuOption icon="person-outline" title="Personal Information" onPress={() => router.push("/edit-profile")} />
-            <MenuOption
-              icon={isDarkMode ? "moon" : "sunny-outline"}
-              title="Appearance"
-              value={isDarkMode ? "Dark" : "Light"}
-              onPress={toggleTheme}
-            />
+            <MenuOption icon={isDarkMode ? "moon" : "sunny-outline"} title="Appearance" value={isDarkMode ? "Dark" : "Light"} onPress={toggleTheme} />
             <MenuOption icon="card-outline" title="Default Currency" value={currency.label} onPress={() => { }} />
             <MenuOption icon="notifications-outline" title="Price Alerts" onPress={() => router.push("/alerts")} isLast={true} />
           </View>
@@ -171,11 +125,11 @@ export default function ProfileScreen() {
           <Text style={[styles.groupTitle, { color: isDarkMode ? LIGHT_GRAY : "#888" }]}>More</Text>
           <View style={[styles.groupCard, { backgroundColor: theme.cardColor }]}>
             <MenuOption icon="share-social-outline" title="Invite Friends" onPress={onShare} />
-            <MenuOption icon="star-outline" title="Rate us" onPress={handleRateUs} />
             <MenuOption icon="help-buoy-outline" title="Support Center" onPress={() => { }} isLast={true} />
           </View>
         </View>
 
+        {/* Sign Out Button - Works Now! */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color="#ff4757" />
           <Text style={styles.logoutBtnText}>Sign Out</Text>
@@ -187,22 +141,13 @@ export default function ProfileScreen() {
   );
 }
 
-// ... الستيلات بقيت زي ما هي
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerSection: { alignItems: 'center', paddingTop: 40, marginBottom: 30 },
   avatarContainer: { position: 'relative', marginBottom: 15 },
-  avatarMain: {
-    width: 100, height: 100, borderRadius: 50, backgroundColor: '#007AFF',
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: "#007AFF", shadowOpacity: 0.3, shadowRadius: 15, elevation: 10
-  },
+  avatarMain: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', shadowColor: "#007AFF", shadowOpacity: 0.3, shadowRadius: 15, elevation: 10 },
   avatarText: { fontSize: 42, color: '#fff', fontWeight: '900' },
-  editIcon: {
-    position: 'absolute', bottom: 0, right: 0, backgroundColor: '#222',
-    width: 28, height: 28, borderRadius: 14, justifyContent: 'center',
-    alignItems: 'center', borderWidth: 3
-  },
+  editIcon: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#222', width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 3 },
   nameText: { fontSize: 24, fontWeight: '800' },
   emailBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, marginTop: 5 },
   emailText: { fontSize: 13, fontWeight: '600' },
